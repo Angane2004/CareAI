@@ -22,8 +22,49 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: Ubuntu;
 }
 
 
 /* AIzaSyDOZ2jN2d51-O70E7PsAzaiUVYkP9g5F5s */
+
+
+/* const customScrollbarStyles = `
+    @keyframes pulse-glow {
+      0%, 100% {
+        box-shadow: 0 0 8px 2px rgba(59, 130, 246, 0.4);
+      }
+      50% {
+        box-shadow: 0 0 16px 4px rgba(59, 130, 246, 0.7);
+      }
+    }
+
+    body::-webkit-scrollbar {
+      width: 16px;
+    }
+
+    body::-webkit-scrollbar-track {
+      background-color: #f1f5f9;
+      background-color: var(--scrollbar-track-color, #f1f5f9);
+    }
+
+    body::-webkit-scrollbar-thumb {
+      background-color: #3b82f6;
+      border-radius: 8px;
+      border: 3px solid #f1f5f9;
+      border-color: var(--scrollbar-track-color, #f1f5f9);
+      animation: pulse-glow 3s infinite ease-in-out;
+    }
+     body {
+      color-scheme: light; /* Prevents browser default dark mode styles from interfering */
+    /* }
+
+    @media (prefers-color-scheme: dark) {
+      body {
+        --scrollbar-track-color: #1f2937;
+      }
+    }
+  `; */
+
+
+  /* <style>{customScrollbarStyles}</style> */

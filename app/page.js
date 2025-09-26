@@ -10,6 +10,31 @@ import { Smartphone, Users, HeartPulse, Bot, Ear, Sparkles, RefreshCw, X, CheckC
 const YOUR_API_KEY = "AIzaSyDOZ2jN2d51-O70E7PsAzaiUVYkP9g5F5s";
 // -----------------------------------------
 
+// --- Helper function for API calls with retry logic ---
+const fetchWithRetry = async (url, options, retries = 4) => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const res = await fetch(url, options);
+      if (res.ok) {
+        return res;
+      }
+      // If we hit a rate limit, wait and retry
+      if (res.status === 429) {
+        const delay = Math.pow(2, i) * 1000 + Math.random() * 1000;
+        console.warn(`Rate limit hit. Retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+      // For other errors, we can throw immediately
+      throw new Error(`API request failed with status: ${res.status}`);
+    } catch (error) {
+      if (i === retries - 1) throw error;
+    }
+  }
+  throw new Error("API request failed after multiple retries.");
+};
+
+
 // Main App Component
 export default function App() {
   const [page, setPageState] = useState('landing');
@@ -43,31 +68,41 @@ const LandingPage = ({ setPage }) => {
   const { toasts, addToast } = useToasts();
 
   const customScrollbarStyles = `
-    @keyframes pulse-glow {
-      0%, 100% {
-        box-shadow: 0 0 8px 2px rgba(59, 130, 246, 0.4);
+    @media (min-width: 768px) {
+      @keyframes pulse-glow {
+        0%, 100% {
+          box-shadow: 0 0 8px 2px rgba(59, 130, 246, 0.4);
+        }
+        50% {
+          box-shadow: 0 0 16px 4px rgba(59, 130, 246, 0.7);
+        }
       }
-      50% {
-        box-shadow: 0 0 16px 4px rgba(59, 130, 246, 0.7);
+
+      body::-webkit-scrollbar {
+        width: 16px;
       }
-    }
 
-    body::-webkit-scrollbar {
-      width: 16px;
-    }
+      body::-webkit-scrollbar-track {
+        background-color: #f1f5f9;
+        background-color: var(--scrollbar-track-color, #f1f5f9);
+      }
 
-    body::-webkit-scrollbar-track {
-      background-color: #f1f5f9;
-    }
-
-    body::-webkit-scrollbar-thumb {
-      background-color: #3b82f6;
-      border-radius: 8px;
-      border: 3px solid #f1f5f9;
-      animation: pulse-glow 3s infinite ease-in-out;
+      body::-webkit-scrollbar-thumb {
+        background-color: #3b82f6;
+        border-radius: 8px;
+        border: 3px solid #f1f5f9;
+        border-color: var(--scrollbar-track-color, #f1f5f9);
+        animation: pulse-glow 3s infinite ease-in-out;
+      }
     }
      body {
       color-scheme: light; /* Prevents browser default dark mode styles from interfering */
+    }
+
+    @media (prefers-color-scheme: dark) {
+      body {
+        --scrollbar-track-color: #1f2937;
+      }
     }
   `;
 
@@ -189,7 +224,7 @@ const Navbar = ({ onGetStarted }) => {
             </motion.a>
           ))}
           <motion.button onClick={onGetStarted}
-            className="bg-blue-600 text-white font-semibold py-2 px-5 rounded-lg shadow-md"
+            className="bg-blue-600 text-white font-semibold py-2 px-5 rounded-lg shadow-md cursor-pointer"
             whileHover={{ scale: 1.05, boxShadow: "0 10px 20px -10px rgba(59, 130, 246, 0.5)" }}
             whileTap={{ scale: 0.95 }}
             transition={{ type: 'spring', stiffness: 400, damping: 17 }}
@@ -209,7 +244,7 @@ const Navbar = ({ onGetStarted }) => {
         <div className="md:hidden bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm shadow-lg">
           <div className="flex flex-col items-center py-4 space-y-4">
             {navLinks.map(link => <a key={link.name} href={link.href} onClick={(e) => { handleNavClick(e, link.href); setIsOpen(false);}} className="text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 font-medium py-2">{link.name}</a>)}
-            <button onClick={onGetStarted} className="bg-blue-600 text-white font-semibold py-2 px-6 rounded-lg shadow-md">Get Started</button>
+            <button onClick={onGetStarted} className="bg-blue-600 text-white font-semibold py-2 px-6 rounded-lg shadow-md cursor-pointer">Get Started</button>
           </div>
         </div>
       )}
@@ -229,14 +264,14 @@ const HeroSection = ({ onGetStarted }) => (
         <div className="container mx-auto px-6 relative z-10">
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.2, ease: premiumEase }}>
                 <h1 className="text-4xl md:text-6xl font-extrabold text-gray-900 leading-tight mb-4 tracking-tighter">
-                    Proactive Recovery, <br /> <span className="text-blue-600">Delivered Through WhatsApp.</span>
+                    Proactive Recovery, <br /> <span className="text-blue-600">Delivered Through WhatsApp</span>
                 </h1>
             </motion.div>
             <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.4, ease: premiumEase }} className="text-lg md:text-xl text-gray-600 max-w-3xl mx-auto mb-8">
                 CareCompanion AI is your intelligent recovery assistant, simplifying post-hospital care through the app you already trust.
             </motion.p>
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.6, ease: premiumEase }}>
-                <motion.button onClick={onGetStarted} className="bg-blue-600 text-white font-bold py-3 px-8 rounded-full shadow-lg"
+                <motion.button onClick={onGetStarted} className="bg-blue-600 text-white font-bold py-3 px-8 rounded-full shadow-lg cursor-pointer"
                     whileHover={{ scale: 1.05, y: -3, boxShadow: "0 10px 20px -10px rgba(59, 130, 246, 0.5)" }}
                     whileTap={{ scale: 0.95 }}
                     transition={{ type: 'spring', stiffness: 400, damping: 17 }}
@@ -262,11 +297,11 @@ const AboutSection = () => (
                 <motion.div variants={{hidden: { opacity: 0, x: -50 }, visible: { opacity: 1, x: 0, transition: { duration: 0.8, ease: premiumEase } }}} className="mt-10 bg-blue-50 dark:bg-blue-900/20 p-8 rounded-2xl border border-blue-100 dark:border-blue-900">
                     <h3 className="text-xl font-bold text-blue-600 dark:text-blue-400 mb-2">Our Solution</h3>
                     <h2 className="text-3xl md:text-4xl font-bold mb-4 tracking-tight text-gray-900 dark:text-gray-100">CareCompanion AI</h2>
-                    <p className="text-gray-600 dark:text-gray-400">We provide an intelligent recovery assistant via WhatsApp. It's more than a reminder; it's a two-way conversation that makes care effortless.</p>
+                    <p className="text-gray-600 dark:text-gray-400">We provide an intelligent recovery assistant via WhatsApp. It&apos;s more than a reminder, it&apos;s a two-way conversation that makes care effortless.</p>
                 </motion.div>
             </div>
-            <motion.div variants={{hidden: { opacity: 0, scale: 0.8 }, visible: { opacity: 1, scale: 1, transition: { duration: 0.8, ease: premiumEase, delay: 0.2 } }}} className="relative">
-                <img src="https://images.unsplash.com/photo-1584515933487-779824d27929?q=80&w=1974&auto=format&fit=crop&ixlib-rb-4.0.3" alt="Doctor with patient" className="rounded-2xl shadow-2xl w-full h-auto object-cover"/>
+            <motion.div variants={{hidden: { opacity: 0, scale: 0.8 }, visible: { opacity: 1, scale: 1, transition: { duration: 0.8, ease: premiumEase, delay: 0.2 } }}} className="relative -bottom-2">
+                <img src="/about.png" alt="Doctor with patient" className="rounded-2xl shadow-2xl w-full h-auto object-cover" duration={8} delay={0}/>
                 <div className="absolute -bottom-4 -right-4 w-full h-full bg-blue-200 rounded-2xl -z-10 transform translate-x-4 translate-y-4"></div>
             </motion.div>
         </div>
@@ -305,7 +340,7 @@ const BeneficiariesSection = () => (
     <AnimatedSection id="beneficiaries" className="bg-white dark:bg-gray-800">
         <div className="container mx-auto text-center">
             <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-gray-900 dark:text-gray-100">Who Benefits?</h2>
-            <p className="text-lg text-gray-600 dark:text-gray-400 mt-4 max-w-3xl mx-auto mb-16">Our solution empowers everyone involved in the patient's recovery journey.</p>
+            <p className="text-lg text-gray-600 dark:text-gray-400 mt-4 max-w-3xl mx-auto mb-16">Our solution empowers everyone involved in the patient&apos;s recovery journey.</p>
             <div className="grid md:grid-cols-3 gap-8">
                 <motion.div variants={{ hidden: { opacity: 0, y: 50 }, visible: { opacity: 1, y: 0 } }} className="bg-blue-50 dark:bg-blue-900/20 p-8 rounded-xl border border-blue-100 dark:border-blue-900">
                     <Users className="h-10 w-10 text-blue-600 dark:text-blue-400 mx-auto mb-4" />
@@ -333,7 +368,7 @@ const FlowchartSection = () => (
         <div className="container mx-auto text-center">
             <h2 className="text-3xl md:text-4xl font-bold mb-12 tracking-tight text-gray-900 dark:text-gray-100">How It Works</h2>
             <motion.div variants={{ hidden: { opacity: 0, scale: 0.8 }, visible: { opacity: 1, scale: 1 }}} className="max-w-4xl mx-auto bg-white dark:bg-gray-800 p-4 sm:p-8 rounded-2xl shadow-2xl">
-                <img src="https://i.imgur.com/r6pG2Z4.png" alt="Flowchart" className="rounded-lg w-full h-auto"/>
+                <img src="/how.jpeg" alt="Flowchart" className="rounded-lg w-full h-auto"/>
             </motion.div>
         </div>
     </AnimatedSection>
@@ -376,8 +411,7 @@ const AIDemoSection = ({ addToast }) => {
             
             const payload = { contents: [{ parts: [{ text: `Regarding CareCompanion AI, a user asks: "${question}"` }] }], systemInstruction: { parts: [{ text: systemPrompt }] } };
 
-            const res = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-            if (!res.ok) throw new Error("API request failed");
+            const res = await fetchWithRetry(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
 
             const result = await res.json();
             const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
@@ -407,7 +441,7 @@ const AIDemoSection = ({ addToast }) => {
                         {questions.map((q) => (
                             <motion.button key={q} onClick={() => handleQuestionClick(q)}
                                 disabled={isLoading}
-                                className={`p-4 rounded-lg text-left transition-colors duration-200 w-full disabled:cursor-not-allowed font-medium text-gray-800 dark:text-gray-200 ${activeQuestion === q ? 'bg-blue-600 text-white dark:text-white' : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+                                className={`p-4 rounded-lg text-left cursor-pointer transition-colors duration-200 w-full disabled:cursor-not-allowed font-medium text-gray-800 dark:text-gray-200 ${activeQuestion === q ? 'bg-blue-600 text-white dark:text-white' : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
                                 whileHover={{ scale: isLoading ? 1 : 1.02 }}
                                 whileTap={{ scale: isLoading ? 1 : 0.98 }}
                             >
@@ -570,7 +604,43 @@ const DashboardPage = ({ setPage }) => {
 
     const restartDemo = () => {
       setDemoKey(prevKey => prevKey + 1);
+    };
+    const customScrollbarStyles = `
+    @keyframes pulse-glow {
+      0%, 100% {
+        box-shadow: 0 0 8px 2px rgba(59, 130, 246, 0.4);
+      }
+      50% {
+        box-shadow: 0 0 16px 4px rgba(59, 130, 246, 0.7);
+      }
     }
+
+    body::-webkit-scrollbar {
+      width: 16px;
+    }
+
+    body::-webkit-scrollbar-track {
+      background-color: #f1f5f9;
+      background-color: var(--scrollbar-track-color, #f1f5f9);
+    }
+
+    body::-webkit-scrollbar-thumb {
+      background-color: #3b82f6;
+      border-radius: 8px;
+      border: 3px solid #f1f5f9;
+      border-color: var(--scrollbar-track-color, #f1f5f9);
+      animation: pulse-glow 3s infinite ease-in-out;
+    }
+     body {
+      color-scheme: light; /* Prevents browser default dark mode styles from interfering */
+    }
+
+    @media (prefers-color-scheme: dark) {
+      body {
+        --scrollbar-track-color: #1f2937;
+      }
+    }
+  `;
 
     return (
     <motion.div 
@@ -580,6 +650,7 @@ const DashboardPage = ({ setPage }) => {
       className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-100 dark:from-gray-900 dark:to-blue-900/50 font-sans antialiased flex items-center justify-center py-8 px-4"
     >
       <div className="w-full max-w-5xl mx-auto">
+        <style>{customScrollbarStyles}</style>
         <header className="flex flex-col sm:flex-row justify-between sm:items-center mb-6 text-center sm:text-left">
           <div>
             <h1 className="font-bold text-3xl md:text-4xl text-gray-900 dark:text-gray-100">Interactive WhatsApp Demo</h1>
@@ -587,13 +658,13 @@ const DashboardPage = ({ setPage }) => {
           </div>
           <div className="flex items-center justify-center gap-4 mt-4 sm:mt-0">
             <motion.button onClick={restartDemo}
-                className="font-semibold text-gray-600 dark:text-gray-300 hover:text-black dark:hover:text-white transition-colors flex items-center gap-2"
+                className="font-semibold text-gray-600 dark:text-gray-300 hover:text-black dark:hover:text-white transition-colors flex items-center gap-2 cursor-pointer"
                 whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
             >
                 <RefreshCw size={16} /> Restart Demo
             </motion.button>
             <motion.button onClick={() => setPage('landing')} 
-                className="font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors flex items-center gap-2"
+                className="font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors flex items-center gap-2 cursor-pointer"
                 whileHover={{ x: -5 }}>
                 <motion.span>←</motion.span> Back
             </motion.button>
@@ -709,12 +780,13 @@ const WhatsAppDemo = ({ onLaunch }) => {
     const [messages, setMessages] = useState(initialMessages);
     const [inputValue, setInputValue] = useState("");
     const [isBotTyping, setIsBotTyping] = useState(false);
+    const [demoFinished, setDemoFinished] = useState(false);
     const [currentTime, setCurrentTime] = useState('9:41 AM');
     const { batteryLevel, isCharging, networkType } = useDeviceStatus();
     
     const handleSendMessage = async (e) => {
         e.preventDefault();
-        if (!inputValue.trim() || isBotTyping) return;
+        if (!inputValue.trim() || isBotTyping || demoFinished) return;
 
         const userMessage = { from: 'user', type: 'text', content: inputValue, timestamp: new Date() };
         setMessages(prev => [...prev, userMessage]);
@@ -728,8 +800,7 @@ const WhatsAppDemo = ({ onLaunch }) => {
             
             const conversationalPayload = { contents: [{ parts: [{ text: inputValue }] }], systemInstruction: { parts: [{ text: systemPrompt }] } };
 
-            const res = await fetch(conversationalApiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(conversationalPayload) });
-            if (!res.ok) throw new Error("Conversational API failed");
+            const res = await fetchWithRetry(conversationalApiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(conversationalPayload) });
 
             const result = await res.json();
             const botReply = result.candidates?.[0]?.content?.parts?.[0]?.text || "I'm not sure how to respond, but I'm here to help!";
@@ -746,7 +817,8 @@ const WhatsAppDemo = ({ onLaunch }) => {
                 },
             };
 
-            const analysisRes = await fetch(analysisApiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(analysisPayload) });
+            const analysisRes = await fetchWithRetry(analysisApiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(analysisPayload) });
+            
             if(analysisRes.ok) {
                 const analysisResult = await analysisRes.json();
                 const jsonText = analysisResult.candidates?.[0]?.content?.parts?.[0]?.text;
@@ -761,10 +833,11 @@ const WhatsAppDemo = ({ onLaunch }) => {
              
             await new Promise(res => setTimeout(res, 1500));
             setMessages(prev => [...prev, { from: 'bot', type: 'cta', timestamp: new Date() }]);
+            setDemoFinished(true);
 
         } catch (error) {
             console.error(error);
-            setMessages(prev => [...prev, { from: 'bot', type: 'text', content: 'Sorry, an error occurred. Please ensure your API key is correct.', timestamp: new Date() }]);
+            setMessages(prev => [...prev, { from: 'bot', type: 'text', content: 'Sorry, the AI is temporarily unavailable due to high demand. Please try again in a moment.', timestamp: new Date() }]);
         } finally {
             setIsBotTyping(false);
         }
@@ -784,8 +857,25 @@ const WhatsAppDemo = ({ onLaunch }) => {
         }
     }, [messages]);
 
+    const customScrollbarStyles = `
+        .whatsapp-scrollbar::-webkit-scrollbar {
+            width: 5px;
+        }
+        .whatsapp-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .whatsapp-scrollbar::-webkit-scrollbar-thumb {
+            background-color: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+        }
+        .dark .whatsapp-scrollbar::-webkit-scrollbar-thumb {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+    `;
+
     return (
         <div className="relative max-w-sm mx-auto">
+            <style>{customScrollbarStyles}</style>
             <div className="bg-gray-800 p-2 sm:p-3 rounded-[40px] shadow-2xl border-4 border-gray-900">
                 <div className="bg-white dark:bg-gray-900 rounded-[32px] overflow-hidden flex flex-col h-[700px]">
                     <div className="bg-gray-100 dark:bg-gray-800 p-3 flex-shrink-0 relative">
@@ -807,27 +897,28 @@ const WhatsAppDemo = ({ onLaunch }) => {
                         </div>
                     </div>
 
-                    <div ref={chatContainerRef} className="flex-grow overflow-y-auto p-4 bg-cover custom-scrollbar relative" style={{ backgroundImage: "url('https://i.pinimg.com/736x/8c/98/99/8c98994518b575bfd8c949e91d20548b.jpg')" }}>
+                    <div ref={chatContainerRef} className="flex-grow overflow-y-auto p-4 bg-cover whatsapp-scrollbar relative" style={{ backgroundImage: "url('https://i.pinimg.com/736x/8c/98/99/8c98994518b575bfd8c949e91d20548b.jpg')" }}>
                         <div className="absolute top-0 left-0 w-full h-6 bg-gradient-to-b from-white dark:from-gray-900 to-transparent pointer-events-none"></div>
                         <AnimatePresence>
                         {messages.map((msg, index) => {
+                            const key = `${msg.type}-${msg.timestamp.toISOString()}-${index}`;
                             if (msg.type === 'cta') {
-                                return <motion.div key="cta" initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} className="text-center my-4"><motion.button onClick={onLaunch} whileHover={{ scale: 1.05 }} className="bg-green-500 text-white font-semibold py-2 px-5 rounded-full shadow-lg">Launch on WhatsApp (Coming Soon)</motion.button></motion.div>
+                                return <motion.div key={key} initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} className="text-center my-4"><motion.button onClick={onLaunch} whileHover={{ scale: 1.05 }} className="bg-green-500 text-white font-semibold py-2 px-5 rounded-full shadow-lg">Launch on WhatsApp (Coming Soon)</motion.button></motion.div>
                             }
                             const isBot = msg.from === 'bot';
                             return (
-                                <motion.div key={index} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className={`flex mb-4 ${isBot ? 'justify-start' : 'justify-end'}`}>
+                                <motion.div key={key} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className={`flex mb-4 ${isBot ? 'justify-start' : 'justify-end'}`}>
                                     <div className={`max-w-xs rounded-xl shadow-sm text-sm text-gray-800 dark:text-gray-200 ${isBot ? 'bg-white dark:bg-gray-700' : 'bg-green-100 dark:bg-green-800/50'}`}>
                                       <div className="p-2 pb-5 relative">
                                         {msg.type === 'analysis' ? (
                                             <div>
-                                                <p className="break-words">{msg.content}</p>
+                                                <p className="break-words mr-10">{msg.content}</p>
                                                 <div className="mt-2 text-xs border-t dark:border-gray-600 pt-2 flex flex-wrap gap-1">
                                                     <strong className="dark:text-gray-300">Keywords:</strong>
                                                     {msg.keywords.map(kw => ( <span key={kw} className="bg-yellow-200 text-yellow-800 px-1.5 py-0.5 rounded-md font-medium capitalize">{kw}</span>))}
                                                 </div>
                                             </div>
-                                        ) : ( <p className="break-words">{msg.content}</p> )}
+                                        ) : ( <p className="break-words mr-10">{msg.content}</p> )}
                                         <span className="absolute bottom-1.5 right-2 text-[10px] text-gray-500 dark:text-gray-400">{msg.timestamp.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}</span>
                                        </div>
                                     </div>
@@ -838,14 +929,14 @@ const WhatsAppDemo = ({ onLaunch }) => {
                         </AnimatePresence>
                     </div>
 
-                    <form onSubmit={handleSendMessage} className="bg-gray-100 dark:bg-gray-800 p-2 flex items-center gap-2 flex-shrink-0">
+                    <form onSubmit={handleSendMessage} className="bg-gray-100 dark:bg-gray-800 p-2 flex items-center gap-0 flex-shrink-0">
                         <LockedButton icon={PlusCircle} featureName="Attachments" isFirst={true} />
                         <LockedButton icon={Mic} featureName="Voice Note" />
-                        <input type="text" placeholder="Type your symptoms..." 
+                        <input type="text" placeholder={demoFinished ? "Demo finished. Restart to chat." : "Type your symptoms..."}
                             value={inputValue} onChange={(e) => setInputValue(e.target.value)}
-                            className="flex-grow bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-full py-2 px-4 text-sm outline-none disabled:bg-gray-700 dark:disabled:bg-gray-600 transition-all" 
-                            disabled={isBotTyping} />
-                        <button type="submit" className="bg-green-500 text-white rounded-full p-2 disabled:bg-gray-400 transition-all" disabled={!inputValue.trim() || isBotTyping}><Send size={20}/></button>
+                            className="flex flex-col bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-full py-2 px-4 text-sm outline-none disabled:bg-gray-200 dark:disabled:bg-gray-600 transition-all" 
+                            disabled={isBotTyping || demoFinished} />
+                        <button type="submit" className="bg-green-500 text-white rounded-full p-2 disabled:bg-gray-400 transition-all cursor-pointer" disabled={!inputValue.trim() || isBotTyping || demoFinished}><Send size={20}/></button>
                     </form>
                 </div>
             </div>
